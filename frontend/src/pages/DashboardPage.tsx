@@ -61,6 +61,11 @@ export function DashboardPage() {
         <SummaryCard label="Expense" value={summary?.expense ?? 0} accent="text-red-500" />
       </div>
 
+      {/* Savings-health banner — reacts to the actual balance rather
+          than being decorative, same red/amber/green status language
+          as the budget progress bars use. */}
+      <SavingsHealthBanner summary={summary} />
+
       {/* Auto-generated insight banner */}
       {insight && (
         <div className="bg-teal-50 dark:bg-teal-950 border border-teal-200 dark:border-teal-800 rounded-xl p-4 text-sm text-teal-900 dark:text-teal-100">
@@ -99,6 +104,45 @@ export function DashboardPage() {
       </div>
     </div>
   );
+}
+
+/**
+ * Reacts to this month's actual numbers — three states, same
+ * red/amber/green vocabulary as the budget bars, so "over budget" and
+ * "overspending overall" read as the same kind of warning everywhere
+ * in the app:
+ *   - critical (red):  spent more than earned this month
+ *   - warning (amber):  saved less than 10% of income
+ *   - good (green):     saved a healthy share of income
+ * Shows nothing yet if there's no income or expense logged at all —
+ * a status message about zero data isn't useful.
+ */
+function SavingsHealthBanner({ summary }: { summary: MonthlySummary | null }) {
+  if (!summary || (summary.income === 0 && summary.expense === 0)) return null;
+
+  const savingsRate = summary.income > 0 ? (summary.balance / summary.income) * 100 : -100;
+
+  let level: "critical" | "warning" | "good";
+  let message: string;
+
+  if (summary.balance < 0) {
+    level = "critical";
+    message = `⚠️ You're spending ${Math.abs(summary.balance).toFixed(0)} more than you're earning this month.`;
+  } else if (savingsRate < 10) {
+    level = "warning";
+    message = `You're just about breaking even this month — only ${savingsRate.toFixed(0)}% saved so far.`;
+  } else {
+    level = "good";
+    message = `🎉 You've saved ${savingsRate.toFixed(0)}% of your income this month.`;
+  }
+
+  const styles = {
+    critical: "bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800 text-red-900 dark:text-red-100",
+    warning: "bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-100",
+    good: "bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800 text-green-900 dark:text-green-100",
+  }[level];
+
+  return <div className={`border rounded-xl p-4 text-sm ${styles}`}>{message}</div>;
 }
 
 function SummaryCard({ label, value, accent }: { label: string; value: number; accent: string }) {
