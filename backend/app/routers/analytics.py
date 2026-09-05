@@ -1,12 +1,18 @@
 """
-Analytics routes: aggregated numbers that power the dashboard charts and
-the auto-generated "insight" sentence (e.g. "Food spending up 23%").
+Analytics routes: aggregated numbers that power the dashboard charts,
+the auto-generated "insight" sentence, and the yearly trend view.
+
+Every route here defaults to the current month/year when no `year`/
+`month` query param is given, but accepts explicit ones so the frontend
+can let a user page back to "August" or "2025" instead of only ever
+showing "this month."
 """
 
 import calendar
 from datetime import datetime
+from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -25,41 +31,66 @@ def _month_bounds(year: int, month: int) -> tuple[datetime, datetime]:
     return start, end
 
 
-@router.get("/summary")
-def monthly_summary(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
-):
-    """Total income, total expenses, and net balance for the current month."""
+def _resolve_year_month(year: Optional[int], month: Optional[int]) -> tuple[int, int]:
+    """Fall back to the current year/month whenever either is omitted."""
     now = datetime.utcnow()
-    start, end = _month_bounds(now.year, now.month)
+    return (year or now.year), (month or now.month)
+
+
+def _totals_for_range(
+    db: Session, user_id: int, start: datetime, end: datetime
+) -> tuple[float, float]:
+    """(income, expense) totals for a user within a date range."""
 
     def total_for(tx_type: TransactionType) -> float:
         return (
             db.query(func.coalesce(func.sum(Transaction.amount), 0.0))
             .filter(
-                Transaction.user_id == current_user.id,
+                Transaction.user_id == user_id,
                 Transaction.type == tx_type,
                 Transaction.date.between(start, end),
             )
             .scalar()
         )
 
-    income = total_for(TransactionType.income)
-    expense = total_for(TransactionType.expense)
+    return total_for(TransactionType.income), total_for(TransactionType.expense)
 
-    return {"income": income, "expense": expense, "balance": income - expense}
+
+@router.get("/summary")
+def monthly_summary(
+    year: Optional[int] = None,
+    month: Optional[int] = Query(default=None, ge=1, le=12),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Total income, total expenses, and net balance for a given month
+    (defaults to the current one)."""
+    year, month = _resolve_year_month(year, month)
+    start, end = _month_bounds(year, month)
+    income, expense = _totals_for_range(db, current_user.id, start, end)
+
+    return {
+        "year": year,
+        "month": month,
+        "income": income,
+        "expense": expense,
+        "balance": income - expense,
+    }
 
 
 @router.get("/by-category")
 def spending_by_category(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    year: Optional[int] = None,
+    month: Optional[int] = Query(default=None, ge=1, le=12),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Expense total per category for the current month — feeds the pie
-    chart on the dashboard.
+    Expense total per category for a given month (defaults to the
+    current one) — feeds the pie chart on the dashboard.
     """
-    now = datetime.utcnow()
-    start, end = _month_bounds(now.year, now.month)
+    year, month = _resolve_year_month(year, month)
+    start, end = _month_bounds(year, month)
 
     rows = (
         db.query(Category.name, Category.icon, func.sum(Transaction.amount).label("total"))
@@ -78,18 +109,23 @@ def spending_by_category(
 
 @router.get("/insight")
 def spending_insight(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    year: Optional[int] = None,
+    month: Optional[int] = Query(default=None, ge=1, le=12),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    Compare this month's spending per category against last month's and
-    surface the single biggest percentage change as a human-readable
-    sentence, e.g. "Your Food spending increased 23% vs last month."
+    Compare a given month's spending per category against the previous
+    month's and surface the single biggest percentage change as a
+    human-readable sentence, e.g. "Your Food spending increased 23% vs
+    last month." Defaults to comparing the current month to the one
+    before it.
     """
-    now = datetime.utcnow()
-    this_start, this_end = _month_bounds(now.year, now.month)
+    year, month = _resolve_year_month(year, month)
+    this_start, this_end = _month_bounds(year, month)
 
-    prev_month = now.month - 1 or 12
-    prev_year = now.year if now.month > 1 else now.year - 1
+    prev_month = month - 1 or 12
+    prev_year = year if month > 1 else year - 1
     prev_start, prev_end = _month_bounds(prev_year, prev_month)
 
     def totals_by_category(start: datetime, end: datetime) -> dict[str, float]:
@@ -106,14 +142,14 @@ def spending_insight(
         )
         return {name: total for name, total in rows}
 
-    this_month = totals_by_category(this_start, this_end)
-    last_month = totals_by_category(prev_start, prev_end)
+    this_month_totals = totals_by_category(this_start, this_end)
+    last_month_totals = totals_by_category(prev_start, prev_end)
 
     biggest_change = None
     biggest_percent = 0.0
 
-    for category, this_total in this_month.items():
-        prev_total = last_month.get(category, 0.0)
+    for category, this_total in this_month_totals.items():
+        prev_total = last_month_totals.get(category, 0.0)
         if prev_total <= 0:
             continue  # avoid divide-by-zero / meaningless "infinite" jumps
         percent_change = ((this_total - prev_total) / prev_total) * 100
@@ -130,4 +166,55 @@ def spending_insight(
             f"Your {biggest_change} spending {direction} "
             f"{abs(round(biggest_percent))}% compared to last month."
         )
+    }
+
+
+@router.get("/yearly")
+def yearly_summary(
+    year: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Month-by-month income/expense/net for a whole year, plus the annual
+    totals — powers the Yearly tab's trend chart and "you saved/lost X
+    this year" headline. Defaults to the current year.
+
+    Future months (for the current year) are included as zeros rather
+    than omitted, so the chart's x-axis always spans all 12 months.
+    """
+    now = datetime.utcnow()
+    year = year or now.year
+
+    months = []
+    total_income = 0.0
+    total_expense = 0.0
+
+    for month in range(1, 13):
+        start, end = _month_bounds(year, month)
+        # Don't bother querying months that haven't happened yet this
+        # year — they're guaranteed to be zero and querying them just
+        # wastes a round trip.
+        if year == now.year and month > now.month:
+            income, expense = 0.0, 0.0
+        else:
+            income, expense = _totals_for_range(db, current_user.id, start, end)
+
+        months.append(
+            {
+                "month": month,
+                "income": income,
+                "expense": expense,
+                "net": income - expense,
+            }
+        )
+        total_income += income
+        total_expense += expense
+
+    return {
+        "year": year,
+        "months": months,
+        "total_income": total_income,
+        "total_expense": total_expense,
+        "total_net": total_income - total_expense,
     }

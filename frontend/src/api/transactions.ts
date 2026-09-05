@@ -5,6 +5,8 @@ export interface TransactionFilters {
   category_id?: number;
   start_date?: string;
   end_date?: string;
+  min_amount?: number;
+  max_amount?: number;
 }
 
 export async function fetchTransactions(filters: TransactionFilters = {}): Promise<Transaction[]> {

@@ -43,6 +43,8 @@ export interface BudgetStatus extends Budget {
 }
 
 export interface MonthlySummary {
+  year: number;
+  month: number;
   income: number;
   expense: number;
   balance: number;
@@ -52,4 +54,19 @@ export interface CategorySpending {
   category: string;
   icon: string;
   total: number;
+}
+
+export interface MonthPoint {
+  month: number; // 1-12
+  income: number;
+  expense: number;
+  net: number;
+}
+
+export interface YearlySummary {
+  year: number;
+  months: MonthPoint[];
+  total_income: number;
+  total_expense: number;
+  total_net: number;
 }
