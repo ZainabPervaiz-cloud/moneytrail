@@ -1,0 +1,15 @@
+/* Pulls in Tailwind's base/components/utilities layers (v4 syntax —
+   replaces the old @tailwind directives). All app styling below this
+   line is just Tailwind utility classes used in components. */
+@import "tailwindcss";
+
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  /* Prevents the elastic "pull to refresh" bounce feeling like a native
+     app is fighting the browser chrome once installed as a PWA. */
+  overscroll-behavior-y: contain;
+}
