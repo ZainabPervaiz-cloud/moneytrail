@@ -12,33 +12,42 @@ Flow:
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
 from app.models import User
 
-# bcrypt is a slow-by-design hashing algorithm, which is exactly what you
-# want for passwords: it makes brute-forcing stolen hashes impractical.
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # Tells FastAPI where clients get a token from (used for OpenAPI docs +
 # for extracting the token out of the "Authorization: Bearer <token>" header).
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
+# bcrypt only hashes the first 72 bytes of its input; anything past that
+# is silently ignored. Truncating up front makes that limit explicit
+# rather than a surprise, and keeps very long inputs from erroring out.
+_MAX_PASSWORD_BYTES = 72
+
 
 def hash_password(plain_password: str) -> str:
-    """One-way hash a plaintext password for storage."""
-    return pwd_context.hash(plain_password)
+    """One-way hash a plaintext password for storage, using bcrypt directly.
+
+    (Uses the `bcrypt` library's own API rather than the passlib wrapper —
+    passlib is unmaintained and its internal self-test breaks on
+    bcrypt>=4.1.)
+    """
+    truncated = plain_password.encode("utf-8")[:_MAX_PASSWORD_BYTES]
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(truncated, salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Check a login attempt's plaintext password against the stored hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    truncated = plain_password.encode("utf-8")[:_MAX_PASSWORD_BYTES]
+    return bcrypt.checkpw(truncated, hashed_password.encode("utf-8"))
 
 
 def create_access_token(subject: str, expires_delta: Optional[timedelta] = None) -> str:

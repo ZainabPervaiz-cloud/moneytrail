@@ -13,7 +13,9 @@ email-validator==2.2.0   # required for pydantic's EmailStr type
 
 # --- Auth ---
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+# Used directly (not via passlib, which is unmaintained and incompatible
+# with bcrypt>=4.1's stricter API) — see app/auth.py.
+bcrypt==4.2.0
 python-multipart==0.0.9
 
 # --- Env vars ---
