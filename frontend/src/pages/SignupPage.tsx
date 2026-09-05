@@ -6,6 +6,7 @@ export function SignupPage() {
   const { signup } = useAuth();
   const navigate = useNavigate();
 
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -16,7 +17,7 @@ export function SignupPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await signup(email, password);
+      await signup(name, email, password);
       navigate("/", { replace: true });
     } catch {
       setError("Could not create account — that email may already be registered.");
@@ -35,6 +36,14 @@ export function SignupPage() {
       </p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <input
+          type="text"
+          required
+          placeholder="Full name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="border border-neutral-300 dark:border-neutral-700 bg-transparent rounded-lg px-4 py-3 outline-none focus:border-teal-600"
+        />
         <input
           type="email"
           required

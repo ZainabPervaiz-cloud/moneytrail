@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user
 from app.database import get_db
+from app.defaults import DEFAULT_CATEGORIES
 from app.models import Category, User
 from app.schemas import CategoryCreate, CategoryOut
 
@@ -20,8 +21,27 @@ router = APIRouter(prefix="/categories", tags=["categories"])
 def list_categories(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    """Return every category belonging to the logged-in user."""
-    return db.query(Category).filter(Category.user_id == current_user.id).all()
+    """
+    Return every category belonging to the logged-in user.
+
+    A brand-new account has none yet, and the app has no separate
+    "create category" screen — so on first load here, seed the default
+    set automatically rather than showing the user an empty dropdown
+    with no way to fill it.
+    """
+    categories = db.query(Category).filter(Category.user_id == current_user.id).all()
+
+    if not categories:
+        categories = [
+            Category(**default, user_id=current_user.id, is_default=True)
+            for default in DEFAULT_CATEGORIES
+        ]
+        db.add_all(categories)
+        db.commit()
+        for category in categories:
+            db.refresh(category)
+
+    return categories
 
 
 @router.post("/", response_model=CategoryOut, status_code=201)

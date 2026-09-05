@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { fetchMonthlySummary, fetchSpendingByCategory, fetchSpendingInsight } from "../api/analytics";
+import { useAuth } from "../context/AuthContext";
 import type { CategorySpending, MonthlySummary } from "../types";
 
 // A small, colorblind-considered palette cycled across pie slices —
@@ -13,6 +14,7 @@ import type { CategorySpending, MonthlySummary } from "../types";
 const CHART_COLORS = ["#0f766e", "#f59e0b", "#ef4444", "#6366f1", "#ec4899", "#84cc16"];
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
   const [byCategory, setByCategory] = useState<CategorySpending[]>([]);
   const [insight, setInsight] = useState<string>("");
@@ -35,11 +37,22 @@ export function DashboardPage() {
     return <p className="text-center text-neutral-500 mt-10">Loading dashboard…</p>;
   }
 
+  // First-name-only greeting — "Hi, Zainab 👋" rather than the full
+  // legal name, which stays reserved for account/profile contexts.
+  const firstName = user?.name?.split(" ")[0];
+
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        This Month
-      </h1>
+      <div>
+        {firstName && (
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-1">
+            Hi, {firstName} 👋
+          </p>
+        )}
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          This Month
+        </h1>
+      </div>
 
       {/* Balance / income / expense summary cards */}
       <div className="grid grid-cols-3 gap-3">

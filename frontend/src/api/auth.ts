@@ -1,8 +1,9 @@
 import { apiClient } from "./client";
+import type { User } from "../types";
 
 /** Create a new account. Throws (via axios) on duplicate email. */
-export async function signup(email: string, password: string) {
-  const { data } = await apiClient.post("/auth/signup", { email, password });
+export async function signup(name: string, email: string, password: string) {
+  const { data } = await apiClient.post("/auth/signup", { name, email, password });
   return data;
 }
 
@@ -22,4 +23,10 @@ export async function login(email: string, password: string): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
   return data.access_token as string;
+}
+
+/** Fetch the logged-in user's own profile (name, email, ...). */
+export async function fetchMe(): Promise<User> {
+  const { data } = await apiClient.get("/auth/me");
+  return data;
 }

@@ -38,6 +38,9 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
+    # Display name — shown in the dashboard greeting ("Hi, Zainab 👋")
+    # instead of the app only ever knowing the user by their email.
+    name = Column(String, nullable=False)
     # Never store raw passwords — only the bcrypt hash (see app/auth.py).
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)

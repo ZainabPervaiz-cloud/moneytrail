@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
-from app.auth import create_access_token, hash_password, verify_password
+from app.auth import create_access_token, get_current_user, hash_password, verify_password
 from app.database import get_db
 from app.models import User
 from app.schemas import Token, UserCreate, UserOut
@@ -24,11 +24,26 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    user = User(email=user_in.email, hashed_password=hash_password(user_in.password))
+    user = User(
+        name=user_in.name,
+        email=user_in.email,
+        hashed_password=hash_password(user_in.password),
+    )
     db.add(user)
     db.commit()
     db.refresh(user)  # populates user.id/created_at from the DB
     return user
+
+
+@router.get("/me", response_model=UserOut)
+def read_current_user(current_user: User = Depends(get_current_user)):
+    """
+    Return the logged-in user's own profile — the frontend calls this
+    right after login/signup (and on app load) so it knows the display
+    name to greet them with, since the login response itself only ever
+    carries a token, not the profile.
+    """
+    return current_user
 
 
 @router.post("/login", response_model=Token)

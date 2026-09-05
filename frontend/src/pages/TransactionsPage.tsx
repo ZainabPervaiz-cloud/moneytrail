@@ -35,6 +35,14 @@ export function TransactionsPage() {
 
   const categoriesForType = categories.filter((c) => c.type === type);
 
+  // The catch-all "Other" / "Other Income" category groups anything that
+  // doesn't fit the presets for budgeting/analytics purposes — but on its
+  // own it's meaningless in the transaction list, so once it's selected
+  // the note becomes "what is this, specifically?" instead of an
+  // optional aside (e.g. picking "Other" and noting "Umrah").
+  const selectedCategory = categories.find((c) => c.id === categoryId);
+  const isOtherCategory = selectedCategory?.name.startsWith("Other") ?? false;
+
   async function handleAdd(e: FormEvent) {
     e.preventDefault();
     if (!categoryId || !amount) return;
@@ -121,10 +129,15 @@ export function TransactionsPage() {
 
         <input
           type="text"
-          placeholder="Note (optional)"
+          required={isOtherCategory}
+          placeholder={isOtherCategory ? "What's this for? e.g. Umrah, Gift, Repair" : "Note (optional)"}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          className="border border-neutral-300 dark:border-neutral-700 bg-transparent rounded-lg px-3 py-2"
+          className={`border bg-transparent rounded-lg px-3 py-2 ${
+            isOtherCategory
+              ? "border-teal-600 dark:border-teal-500"
+              : "border-neutral-300 dark:border-neutral-700"
+          }`}
         />
 
         <button
