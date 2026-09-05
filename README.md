@@ -1,5 +1,7 @@
 # Finance Tracker
 
+> *Financial clarity, without the complexity.*
+
 A personal finance tracker that lets you log income/expenses, see spending
 analytics, set budgets, and get alerts — built as an installable
 **Progressive Web App (PWA)**, so it goes on your phone's home screen like
