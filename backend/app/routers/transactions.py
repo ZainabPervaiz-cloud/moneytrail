@@ -25,13 +25,17 @@ def list_transactions(
     category_id: Optional[int] = None,
     start_date: Optional[datetime] = None,
     end_date: Optional[datetime] = None,
+    min_amount: Optional[float] = None,
+    max_amount: Optional[float] = None,
     limit: int = Query(default=100, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """
     List the logged-in user's transactions, optionally filtered by
-    category and/or date range — powers the history view and its filters.
+    category, date range, and/or amount range — powers the search bar
+    on the Transactions page (e.g. "in October, where did I spend
+    around 1000?").
     """
     query = db.query(Transaction).filter(Transaction.user_id == current_user.id)
 
@@ -41,6 +45,10 @@ def list_transactions(
         query = query.filter(Transaction.date >= start_date)
     if end_date is not None:
         query = query.filter(Transaction.date <= end_date)
+    if min_amount is not None:
+        query = query.filter(Transaction.amount >= min_amount)
+    if max_amount is not None:
+        query = query.filter(Transaction.amount <= max_amount)
 
     return query.order_by(Transaction.date.desc()).limit(limit).all()
 
